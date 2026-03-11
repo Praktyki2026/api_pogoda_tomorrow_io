@@ -16,8 +16,12 @@ API_KEY = konfiguracja.get_api_key()
 LOCATION = konfiguracja.get_location()
 
 DATA_FOLDER = "dane"
-DATA_FILE = os.path.join(DATA_FOLDER, "minute_data.json")
+DATA_FILE = os.path.join(DATA_FOLDER, "weather_data.json")
 LOG_FILE = os.path.join(DATA_FOLDER, "weather_app.log")
+
+
+def setup_folders():
+    Path(DATA_FOLDER).mkdir(parents=True, exist_ok=True)
 
 # Konfiguracja logowania
 logging.basicConfig(
@@ -29,14 +33,12 @@ logging.basicConfig(
     ]
 )
 
-def setup_folders():
-    Path(DATA_FOLDER).mkdir(parents=True, exist_ok=True)
 
-def fetch_minute_data():
+def fetch_weather_data():
     url = "https://api.tomorrow.io/v4/weather/forecast"
     params = {
         "location": LOCATION,
-        "timesteps": "1m",
+        "timesteps": ["1m", "1h", "1d"],
         "apikey": API_KEY,
         "units": "metric"
     }
@@ -170,7 +172,7 @@ def main():
     
     # Pierwsze pobranie danych
     print("📡 Pobieranie pierwszych danych...")
-    weather_data = fetch_minute_data()
+    weather_data = fetch_weather_data()
     
     if not weather_data:
         print("❌ Nie udało się pobrać danych")
@@ -200,7 +202,7 @@ def main():
                 # Sprawdź aktualizację danych (pełna godzina)
                 if current_time >= next_hour_update:
                     print("\n⏰ Aktualizacja danych...")
-                    new_data = fetch_minute_data()
+                    new_data = fetch_weather_data()
                     if new_data:
                         weather_data = new_data
                         save_data(weather_data)
