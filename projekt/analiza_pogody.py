@@ -1,10 +1,3 @@
-import json
-import os
-from datetime import datetime, timedelta, time
-from pathlib import Path
-import argparse
-from typing import List, Dict, Tuple, Optional
-import sys
 
 """
 Program do analizy danych pogodowych z Tomorrow.io
@@ -22,18 +15,41 @@ Wyszukuje optymalne okno czasowe na ognisko wg kryteriów:
 # python analizator_ogniska.py --pokaz-wszystkie
 
 """
-parametry
-Opcja	Opis	Domyślnie
---plik	Ścieżka do pliku JSON	dane/weather_data.json
---temp	Minimalna temperatura	15.0°C
---godziny	Minimalna liczba godzin	4
---start	Godzina początkowa	16
---koniec	Godzina końcowa	24
---dni	Liczba dni do analizy	5
---ciagle	Wymagaj ciągłości godzin	False
---pokaz-wszystkie	Pokaż wszystkie dni	False
---verbose, -v	Szczegółowe informacje	False
+Pełna lista argumentów programu analizatora pogody
+Argument	Typ	Domyślnie	Opis
+Podstawowe			
+--plik	string	dane/weather_data.json	Ścieżka do pliku JSON z danymi pogodowymi
+--temp	float	15.0	Minimalna temperatura w °C
+--godziny	int	4	Minimalna liczba słonecznych godzin (w sumie lub ciągłych)
+--start	int	16	Godzina początkowa przedziału (0-23)
+--koniec	int	24	Godzina końcowa przedziału (0-24)
+--dni	int	5	Liczba dni do przodu do analizy
+| Filtrowanie pogody | | | |
+| --tylko-temperatura | flaga | False | Ignoruj warunki pogodowe (weatherCode), sprawdzaj tylko temperaturę |
+| --akceptowane-kody | string | None | Lista kodów pogodowych do akceptacji (oddzielone przecinkami), np. "1000,1100,1101,1102" |
+
+| Wyszukiwanie | | | |
+| --ciagle | flaga | False | Wymagaj ciągłości godzin (domyślnie: sumaryczna liczba) |
+
+| Wyniki | | | |
+| --pokaz-wszystkie | flaga | False | Pokaż wszystkie dni, nawet nie spełniające kryteriów |
+| --pokaz-godziny | flaga | True | Pokaż konkretne godziny dla spełniających dni |
+| --verbose, -v | flaga | False | Bardzo szczegółowe informacje (pokaż wszystkie godziny w przedziale) |
+
+| Informacje | | | |
+| --info | flaga | False | Pokaż dostępne kody pogodowe i ich opisy |
+| --help, -h | flaga | False | Pokaż pomoc i zakończ |
 """
+
+
+import json
+import os
+from datetime import datetime, timedelta, time
+from pathlib import Path
+import argparse
+from typing import List, Dict, Tuple, Optional
+import sys
+
 # =============================================================================
 # KONFIGURACJA
 # =============================================================================
@@ -70,8 +86,8 @@ WEATHER_CODES = {
     8000: "Burza"
 }
 
-# Kody uznawane za "słoneczne" lub z lekkim zachmurzeniem
-SUNNY_CODES = [1000, 1100, 1101]  # Bezchmurnie, przeważnie bezchmurnie, częściowe zachmurzenie
+# Domyślne kody uznawane za "słoneczne" lub z lekkim zachmurzeniem
+DEFAULT_SUNNY_CODES = [1000, 1100, 1101]  # Bezchmurnie, przeważnie bezchmurnie, częściowe zachmurzenie
 
 # =============================================================================
 # FUNKCJE POMOCNICZE
@@ -87,6 +103,8 @@ Przykłady użycia:
   %(prog)s --temp 15 --godziny 4 --start 16 --koniec 24
   %(prog)s --temp 18 --godziny 3 --start 18 --koniec 22 --dni 3
   %(prog)s --plik moje_dane.json --temp 12 --pokaz-wszystkie
+  %(prog)s --temp 5 --tylko-temperatura  # ignoruj warunki pogodowe
+  %(prog)s --temp 5 --akceptowane-kody "1000,1100,1101,1102"  # własna lista kodów
         """
     )
     
@@ -115,9 +133,37 @@ Przykłady użycia:
                         help='Wymagaj ciągłości godzin (domyślnie: sumaryczna liczba)')
     
     parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Szczegółowe informacje o każdej godzinie')
+                        help='Bardzo szczegółowe informacje (pokaż wszystkie godziny w przedziale)')
+    
+    parser.add_argument('--pokaz-godziny', action='store_true', default=True,
+                        help='Pokaż konkretne godziny dla spełniających dni (domyślnie: True)')
+    
+    # NOWE OPCJE
+    parser.add_argument('--tylko-temperatura', action='store_true',
+                        help='Ignoruj warunki pogodowe (weatherCode), sprawdzaj tylko temperaturę')
+    
+    parser.add_argument('--akceptowane-kody', type=str, default=None,
+                        help='Lista kodów pogodowych do akceptacji (oddzielone przecinkami), np. "1000,1100,1101,1102"')
+    
+    parser.add_argument('--info', action='store_true',
+                        help='Pokaż dostępne kody pogodowe i ich opisy')
     
     return parser
+
+
+def show_weather_codes():
+    """Wyświetl wszystkie dostępne kody pogodowe"""
+    print("\n📋 DOSTĘPNE KODY POGODOWE:")
+    print("-" * 50)
+    for code, desc in sorted(WEATHER_CODES.items()):
+        if code > 0:  # Pomijamy kod 0 (Nieznane)
+            emoji = get_weather_emoji(code)
+            default_marker = " ✓" if code in DEFAULT_SUNNY_CODES else ""
+            print(f"  {emoji} {code}: {desc}{default_marker}")
+    print("-" * 50)
+    print("✓ - domyślnie uznawane za słoneczne")
+    print("\nUżyj --akceptowane-kody z listą kodów oddzielonych przecinkami")
+    print("lub --tylko-temperatura aby zignorować warunki pogodowe\n")
 
 
 def load_json_data(file_path: str) -> Optional[Dict]:
@@ -147,18 +193,71 @@ def get_weather_description(code: Optional[int]) -> str:
     return WEATHER_CODES.get(code, f"Nieznany kod ({code})")
 
 
-def is_sunny(weather_code: Optional[int], cloudy_codes: List[int] = None) -> bool:
-    """Sprawdź, czy kod pogodowy oznacza słoneczną pogodę"""
+def get_weather_emoji(code: Optional[int]) -> str:
+    """Zwróć emoji dla kodu pogodowego"""
+    if code is None:
+        return "❓"
+    if code in [1000, 1100]:
+        return "☀️"
+    if code == 1101:
+        return "⛅"
+    if code == 1102:
+        return "☁️"
+    if code == 1001:
+        return "☁️☁️"
+    if code in [2000, 2100]:
+        return "🌫️"
+    if code in [4000, 4001, 4200, 4201]:
+        return "🌧️"
+    if code in [5000, 5001, 5100, 5101]:
+        return "❄️"
+    if code in [6000, 6001, 6200, 6201]:
+        return "🌨️"
+    if code == 8000:
+        return "⛈️"
+    return "☁️"
+
+
+def is_weather_accepted(weather_code: Optional[int], accepted_codes: List[int] = None) -> bool:
+    """
+    Sprawdź, czy kod pogodowy jest akceptowany
+    Jeśli accepted_codes = None, używa domyślnych słonecznych kodów
+    """
     if weather_code is None:
         return False
-    if cloudy_codes is not None:
-        return weather_code in cloudy_codes
-    return weather_code in SUNNY_CODES
+    
+    if accepted_codes is not None:
+        return weather_code in accepted_codes
+    else:
+        return weather_code in DEFAULT_SUNNY_CODES
 
 
-def format_hour(dt: datetime) -> str:
-    """Formatuj godzinę do wyświetlenia"""
-    return dt.strftime("%d.%m %H:%M")
+def show_available_date_range(data: Dict):
+    """Pokaż jaki zakres dat jest dostępny w pliku"""
+    if 'timelines' not in data or 'hourly' not in data['timelines']:
+        return
+    
+    hourly = data['timelines']['hourly']
+    if not hourly:
+        return
+    
+    # Znajdź pierwszą i ostatnią datę
+    first_time = datetime.fromisoformat(hourly[0]['time'].replace('Z', '+00:00')).astimezone()
+    last_time = datetime.fromisoformat(hourly[-1]['time'].replace('Z', '+00:00')).astimezone()
+    
+    print(f"\n📅 Dostępny zakres danych:")
+    print(f"   Od: {first_time.strftime('%A, %d %B %Y %H:%M')}")
+    print(f"   Do: {last_time.strftime('%A, %d %B %Y %H:%M')}")
+    
+    # Policz ile pełnych dni
+    dates = set()
+    for entry in hourly:
+        dt = datetime.fromisoformat(entry['time'].replace('Z', '+00:00')).astimezone()
+        dates.add(dt.date())
+    
+    print(f"   Liczba dni: {len(dates)}")
+    print(f"   Dni: {', '.join([d.strftime('%A %d.%m') for d in sorted(dates)])}")
+    print()
 
 
 def find_suitable_windows(data: Dict, args) -> List[Dict]:
@@ -180,6 +279,19 @@ def find_suitable_windows(data: Dict, args) -> List[Dict]:
     
     hourly_data = data['timelines']['hourly']
     print(f"📊 Znaleziono {len(hourly_data)} wpisów godzinowych")
+    
+    # Przygotuj listę akceptowanych kodów pogodowych
+    accepted_codes = None
+    if args.akceptowane_kody:
+        try:
+            accepted_codes = [int(c.strip()) for c in args.akceptowane_kody.split(',')]
+            print(f"🔧 Akceptowane kody pogodowe: {accepted_codes}")
+        except ValueError:
+            print(f"⚠️ Błąd parsowania kodów, używam domyślnych")
+            accepted_codes = None
+    
+    if args.tylko_temperatura:
+        print(f"🔧 Tryb: TYLKO TEMPERATURA (ignoruję warunki pogodowe)")
     
     # Konwersja godzin na obiekty time
     start_time = time(args.start, 0)
@@ -262,17 +374,29 @@ def find_suitable_windows(data: Dict, args) -> List[Dict]:
             
             # Sprawdź kryteria
             temp_ok = temp is not None and temp >= args.temp
-            sunny_ok = is_sunny(weather_code)
+            
+            if args.tylko_temperatura:
+                # Tylko temperatura się liczy
+                suitable = temp_ok
+                sunny_ok = True  # Dla celów wyświetlania
+            else:
+                # Sprawdzaj też pogodę
+                sunny_ok = is_weather_accepted(weather_code, accepted_codes)
+                suitable = temp_ok and sunny_ok
             
             hours_in_range.append({
                 'time': local_time,
                 'temp': temp,
                 'weather_code': weather_code,
                 'weather_desc': get_weather_description(weather_code),
+                'weather_emoji': get_weather_emoji(weather_code),
                 'temp_ok': temp_ok,
                 'sunny_ok': sunny_ok,
-                'suitable': temp_ok and sunny_ok
+                'suitable': suitable
             })
+        
+        # Sortuj godziny
+        hours_in_range.sort(key=lambda x: x['time'])
         
         # Analiza odpowiednich godzin
         suitable_hours = [h for h in hours_in_range if h['suitable']]
@@ -353,6 +477,24 @@ def find_max_continuous_length(hours: List[Dict]) -> int:
     return len(find_longest_continuous_block(hours))
 
 
+def format_hours_list(hours: List[Dict], show_details: bool = False) -> str:
+    """Formatuj listę godzin do wyświetlenia"""
+    if not hours:
+        return "brak"
+    
+    if show_details:
+        # Szczegółowa lista z temperaturą i pogodą
+        lines = []
+        for h in hours:
+            time_str = h['time'].strftime("%H:%M")
+            temp_str = f"{h['temp']:.1f}°C" if h['temp'] is not None else "??°C"
+            lines.append(f"        • {time_str}: {temp_str} {h['weather_emoji']} {h['weather_desc']}")
+        return "\n" + "\n".join(lines)
+    else:
+        # Zwarta lista samych godzin
+        return ", ".join([h['time'].strftime("%H:%M") for h in hours])
+
+
 def display_results(results: List[Dict], args):
     """Wyświetl wyniki w czytelnej formie"""
     
@@ -361,7 +503,7 @@ def display_results(results: List[Dict], args):
         return
     
     print("\n" + "="*70)
-    print("📋 WYNIKI ANALIZY".center(70))
+    print("                           📋 WYNIKI ANALIZY                            ")
     print("="*70)
     
     # Filtruj tylko dni spełniające kryteria
@@ -376,12 +518,18 @@ def display_results(results: List[Dict], args):
             print(f"     • Godzin spełniających kryteria: {day['total_suitable']}")
             print(f"     • Najdłuższy ciągły blok: {day['max_continuous']} godz.")
             
-            # Pokaż szczegóły godzin
-            if args.verbose and day['suitable_hours']:
+            # ZAWSZE pokazuj godziny (chyba że explicitly wyłączone)
+            if args.pokaz_godziny and day['suitable_hours']:
                 print("     • Godziny:")
                 for h in day['suitable_hours']:
                     time_str = h['time'].strftime("%H:%M")
-                    print(f"        - {time_str}: {h['temp']:.1f}°C, {h['weather_desc']}")
+                    temp_str = f"{h['temp']:.1f}°C" if h['temp'] is not None else "??°C"
+                    
+                    # Wyświetl tylko emoji i opis, bez dopisku (ignorowany)
+                    weather_info = f"{h['weather_emoji']} {h['weather_desc']}"
+                    
+                    # W trybie tylko-temperatura nie dodajemy dopisku
+                    print(f"        - {time_str}: {temp_str} {weather_info}")
             
             # Jeśli znaleziono ciągły blok i args.ciagle
             if args.ciagle and 'continuous_block' in day:
@@ -410,11 +558,12 @@ def display_results(results: List[Dict], args):
                 if args.verbose:
                     # Pokaż wszystkie godziny w przedziale
                     suitable_count = 0
+                    print("     • Wszystkie godziny w przedziale:")
                     for h in day['all_hours']:
                         marker = "✅" if h['suitable'] else "❌"
                         time_str = h['time'].strftime("%H:%M")
                         temp_str = f"{h['temp']:.1f}°C" if h['temp'] is not None else "brak"
-                        print(f"        {marker} {time_str}: {temp_str}, {h['weather_desc']}")
+                        print(f"        {marker} {time_str}: {temp_str} {h['weather_emoji']} {h['weather_desc']}")
                         
                         if h['suitable']:
                             suitable_count += 1
@@ -426,13 +575,17 @@ def display_results(results: List[Dict], args):
     
     print("="*70)
 
-
 def main():
     """Główna funkcja programu"""
     
     # Parsuj argumenty
     parser = setup_argparse()
     args = parser.parse_args()
+    
+    # Jeśli --info, pokaż kody i zakończ
+    if args.info:
+        show_weather_codes()
+        return 0
     
     # Wyświetl powitanie
     print("\n" + "🔥"*35)
@@ -443,6 +596,9 @@ def main():
     data = load_json_data(args.plik)
     if not data:
         return 1
+    
+    # Pokaż dostępny zakres dat
+    show_available_date_range(data)
     
     # Znajdź okna
     results = find_suitable_windows(data, args)
@@ -457,6 +613,11 @@ def main():
             best_day = suitable_days[0]  # Pierwszy dzień (najwcześniejszy)
             print(f"\n🎯 NAJLEPSZY DZIEŃ: {best_day['date'].strftime('%d.%m.%Y')}")
             print(f"   z {best_day['total_suitable']} godzinami dobrej pogody")
+            
+            # Pokaż godziny dla najlepszego dnia
+            if best_day['suitable_hours']:
+                hours_str = ", ".join([h['time'].strftime("%H:%M") for h in best_day['suitable_hours']])
+                print(f"   Godziny: {hours_str}")
     
     return 0
 
