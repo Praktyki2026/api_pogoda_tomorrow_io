@@ -142,6 +142,47 @@ def display_weather(minute_data, time_data, current_time):
     except Exception as e:
         logging.error(f"Błąd wyświetlania: {e}")
 
+def display_hourly_24h(data):
+    try:
+        if not data or "timelines" not in data or "hourly" not in data["timelines"]:
+            print("❌ Brak danych godzinowych")
+            return
+
+        hourly_entries = data["timelines"]["hourly"][:24]
+
+        print("\n" + "="*60)
+        print("📊 PROGNOZA GODZINOWA (24h)")
+        print("="*60)
+
+        for entry in hourly_entries:
+            time_str = entry["time"]
+            values = entry["values"]
+
+            api_time = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+            local_time = api_time.astimezone()
+
+            temp = values.get("temperature")
+            rain = values.get("precipitationProbability")
+            wind = values.get("windSpeed")
+            cloud = values.get("cloudCover")
+
+            if wind is not None:
+                wind = wind * 3.6
+
+            print(
+                f"{local_time.strftime('%H:%M')} | "
+                f"🌡 {temp:.1f}°C | "
+                f"☔ {rain:.0f}% | "
+                f"💨 {wind:.1f} km/h | "
+                f"☁ {cloud:.0f}%"
+            )
+
+        print("="*60)
+
+    except Exception as e:
+        logging.error(f"Błąd wyświetlania danych godzinowych: {e}")
+
+
 def wait_for_next_minute():
     """Precyzyjne czekanie do następnej pełnej minuty"""
     now = datetime.now()
