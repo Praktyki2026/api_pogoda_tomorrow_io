@@ -21,7 +21,19 @@ Wyszukuje optymalne okno czasowe na ognisko wg kryteriów:
 
 # python analizator_ogniska.py --pokaz-wszystkie
 
-
+"""
+parametry
+Opcja	Opis	Domyślnie
+--plik	Ścieżka do pliku JSON	dane/weather_data.json
+--temp	Minimalna temperatura	15.0°C
+--godziny	Minimalna liczba godzin	4
+--start	Godzina początkowa	16
+--koniec	Godzina końcowa	24
+--dni	Liczba dni do analizy	5
+--ciagle	Wymagaj ciągłości godzin	False
+--pokaz-wszystkie	Pokaż wszystkie dni	False
+--verbose, -v	Szczegółowe informacje	False
+"""
 # =============================================================================
 # KONFIGURACJA
 # =============================================================================
