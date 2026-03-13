@@ -26,7 +26,7 @@ Argument	Typ	Domyślnie	Opis
 --koniec	int	24	Godzina końcowa przedziału
 --dni-poczatek	int	0	Początek zakresu dni (0 = dziś)
 --dni-koniec	int	6	Koniec zakresu dni
---ciaglosc	flaga	True	Wymagaj ciągłości godzin
+--ciaglosc	flaga	True	Wymagaj ciągłości godzin  (False)
 --pokaz-wszystkie	flaga	False	Pokaż wszystkie dni
 --verbose, -v	flaga	False	Szczegółowe informacje
 --info	flaga	False	Pokaż kody pogodowe
@@ -39,7 +39,11 @@ python analizator_ogniska.py --min-temp 15 --max-temp 25 --poczatek 16 --koniec 
 python analizator_ogniska.py --min-temp 15 --poczatek 16 --koniec 22 --min-ciag-godzin 4 --akceptowane-kody "1000"
 
 python analizator_ogniska.py --min-temp 15 --poczatek 16 --koniec 22 --min-ciag-godzin 4 --akceptowane-kody "1000,1100,1101"
+
+python analizator_ogniska.py --min-temp 5 --akceptowane-kody "1000" --poczatek 12 --koniec 17 --min-ciag-godzin 5 --wyswietlanie-bloku "zakres"
+
 """
+
 
 import json
 import os
@@ -97,8 +101,10 @@ def setup_argparse():
 Przykłady użycia:
   %(prog)s --min-temp 15 --min-ciag-godzin 4 --poczatek 16 --koniec 24
   %(prog)s --min-temp 18 --min-ciag-godzin 3 --poczatek 18 --koniec 22 --dni-koniec 3
-  %(prog)s --min-temp 5 --akceptowane-kody "1000,1100,1101,1102" --pokaz-wszystkie
+  %(prog)s --min-temp 5 --akceptowane-kody "1000,1100,1101" --pokaz-wszystkie
   %(prog)s --min-temp 10 --max-temp 25 --dni-poczatek 1 --dni-koniec 7 --verbose
+  %(prog)s --min-temp 5 --akceptowane-kody "1000" --wyswietlanie-bloku "zakres"
+  %(prog)s --min-temp 5 --akceptowane-kody "1000" --wyswietlanie-bloku "szczegoly"
         """
     )
     
@@ -114,7 +120,7 @@ Przykłady użycia:
                         help='Maksymalna temperatura w °C (domyślnie: brak ograniczenia)')
     
     # Kody pogodowe
-    parser.add_argument('--akceptowane-kody', type=str, default="all",
+    parser.add_argument('--akceptowane-kody', '--akceptowalne-kody', type=str, default="all",
                         help='Lista kodów pogodowych do akceptacji (oddzielone przecinkami) lub "all" dla wszystkich (domyślnie: all)')
     
     # Godziny
@@ -135,8 +141,14 @@ Przykłady użycia:
                         help='Liczba dni od dziś do zakończenia analizy (domyślnie: 6)')
     
     # Flagi
-    parser.add_argument('--ciaglosc', action='store_true', default=True,
-                        help='Wymagaj ciągłości godzin (domyślnie: True)')
+
+    parser.add_argument('--ciaglosc', type=lambda x: x.lower() == 'true', default=True,
+                    help='Wymagaj ciągłości godzin (True/False, domyślnie: True)')
+    
+    # NOWY ARGUMENT: sposób wyświetlania ciągłego bloku
+    parser.add_argument('--wyswietlanie-bloku', type=str, default="szczegoly",
+                        choices=['zakres', 'szczegoly', 'oba'],
+                        help='Sposób wyświetlania ciągłego bloku: "zakres" (tylko przedział), "szczegoly" (wszystkie godziny), "oba" (obie formy) (domyślnie: szczegoly)')
     
     parser.add_argument('--pokaz-wszystkie', action='store_true', default=False,
                         help='Pokaż wszystkie dni, nawet nie spełniające kryteriów (domyślnie: False)')
@@ -358,6 +370,7 @@ def find_suitable_windows(data: Dict, args) -> List[Dict]:
           (f", max {args.max_temp}°C" if args.max_temp is not None else ""))
     print(f"   • Minimalna liczba ciągłych godzin: {args.min_ciag_godzin}")
     print(f"   • Wymagana ciągłość: {'TAK' if args.ciaglosc else 'NIE'}")
+    print(f"   • Wyświetlanie bloku: {args.wyswietlanie_bloku}")
     print()
     
     # Grupuj dane według daty
@@ -556,20 +569,42 @@ def display_results(results: List[Dict], args):
             print(f"     • Godzin spełniających kryteria: {day['total_suitable']}")
             print(f"     • Najdłuższy ciągły blok: {day['max_continuous']} godz.")
             
-            # Pokaż godziny
+            # Wyświetlanie godzin w zależności od argumentu --wyswietlanie-bloku
             if day['suitable_hours']:
-                print("     • Godziny:")
-                for h in day['suitable_hours']:
-                    time_str = h['time'].strftime("%H:%M")
-                    temp_str = f"{h['temp']:.1f}°C" if h['temp'] is not None else "??°C"
-                    print(f"        - {time_str}: {temp_str} {h['weather_emoji']} {h['weather_desc']}")
-            
-            # Jeśli znaleziono ciągły blok
-            if args.ciaglosc and day.get('continuous_block') and day['continuous_block']:
-                block = day['continuous_block']
-                start = block[0]['time'].strftime("%H:%M")
-                end = block[-1]['time'].strftime("%H:%M")
-                print(f"     • Ciągły blok: {start} - {end} ({len(block)} godz.)")
+                if args.wyswietlanie_bloku == "szczegoly":
+                    # Tylko szczegółowa lista
+                    print("     • Godziny:")
+                    for h in day['suitable_hours']:
+                        time_str = h['time'].strftime("%H:%M")
+                        temp_str = f"{h['temp']:.1f}°C" if h['temp'] is not None else "??°C"
+                        print(f"        - {time_str}: {temp_str} {h['weather_emoji']} {h['weather_desc']}")
+                
+                elif args.wyswietlanie_bloku == "zakres":
+                    # Tylko zakres (jeśli jest ciągły blok)
+                    if day.get('continuous_block') and day['continuous_block']:
+                        block = day['continuous_block']
+                        start = block[0]['time'].strftime("%H:%M")
+                        end = block[-1]['time'].strftime("%H:%M")
+                        print(f"     • Ciągły blok: {start} - {end} ({len(block)} godz.)")
+                    else:
+                        # Jeśli nie ma ciągłego bloku, pokaż godziny
+                        print("     • Godziny (brak ciągłości):")
+                        hours_str = ", ".join([h['time'].strftime("%H:%M") for h in day['suitable_hours']])
+                        print(f"        {hours_str}")
+                
+                elif args.wyswietlanie_bloku == "oba":
+                    # Zarówno szczegóły jak i zakres
+                    print("     • Godziny:")
+                    for h in day['suitable_hours']:
+                        time_str = h['time'].strftime("%H:%M")
+                        temp_str = f"{h['temp']:.1f}°C" if h['temp'] is not None else "??°C"
+                        print(f"        - {time_str}: {temp_str} {h['weather_emoji']} {h['weather_desc']}")
+                    
+                    if day.get('continuous_block') and day['continuous_block']:
+                        block = day['continuous_block']
+                        start = block[0]['time'].strftime("%H:%M")
+                        end = block[-1]['time'].strftime("%H:%M")
+                        print(f"     • Ciągły blok: {start} - {end} ({len(block)} godz.)")
             
             print()
     else:
