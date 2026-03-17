@@ -286,6 +286,75 @@ def pokaz_prognoze_doba(dane):
     
     print("="*70)
 
+def pokaz_prognoze_doba_szczegolowa(dane):
+    """
+    Wyświetla bardziej szczegółową prognozę godzinową
+    """
+    print("\n" + "="*80)
+    print("SZCZEGÓŁOWA PROGNOZA GODZINOWA")
+    print("="*80)
+    
+    prognoza = pobierz_nastepne_24h(dane)  # Pokazujemy 12 godzin dla czytelności
+    
+    if not prognoza:
+        print("Brak danych do wyświetlenia")
+        return
+    
+    for wpis in prognoza:
+        czas = wpis["time"]
+        wartosci = wpis["values"]
+        
+        # Konwersja czasu
+        czas_obj = datetime.fromisoformat(czas.replace('Z', '+00:00'))
+        czas_lokalny = czas_obj.astimezone()
+        
+        print(f"\n📅 {czas_lokalny.strftime('%H:%M - %d.%m.%Y')}")
+        print("-" * 40)
+        
+        # Warunki pogodowe
+        if wartosci.get('weatherCode') is not None:
+            kod = wartosci['weatherCode']
+            opis = opis_pogody(kod)
+            print(f"  🌡️  Warunki: {opis}")
+        
+        # Temperatura
+        if wartosci.get('temperature') is not None:
+            print(f"  🌡️  Temperatura: {wartosci['temperature']:.1f}°C")
+        
+        # Odczuwalna
+        if wartosci.get('temperatureApparent') is not None:
+            print(f"  🤔 Odczuwalna: {wartosci['temperatureApparent']:.1f}°C")
+        
+        # Wilgotność
+        if wartosci.get('humidity') is not None:
+            print(f"  💧 Wilgotność: {wartosci['humidity']:.0f}%")
+        
+        # Wiatr
+        if wartosci.get('windSpeed') is not None:
+            wiatr_kmh = wartosci['windSpeed'] * 3.6
+            print(f"  💨 Wiatr: {wiatr_kmh:.1f} km/h")
+        
+        # Opady
+        if wartosci.get('precipitationProbability') is not None:
+            print(f"  ☔  Prawd. opadów: {wartosci['precipitationProbability']:.0f}%")
+        
+        # Zachmurzenie
+        if wartosci.get('cloudCover') is not None:
+            print(f"  ☁️  Zachmurzenie: {wartosci['cloudCover']:.0f}%")
+        
+        # Ciśnienie
+        if wartosci.get('pressureSeaLevel') is not None:
+            print(f"  📈 Ciśnienie: {wartosci['pressureSeaLevel']:.0f} hPa")
+
+
+"""
+na kiedyś do zrobienia
+dodać jeszcze funkcję która będzie wyświetlała szczegółowe informacje godzinowe na wybrany dzień 
+"""
+
+
+
+
 
 """
 wykonywanie programu 
@@ -309,7 +378,7 @@ dane_pogodowe = load_data(DATA_FILE)
 
 pokaz_prognoze_doba(dane_pogodowe)
 
-
+pokaz_prognoze_doba_szczegolowa(dane_pogodowe)
 
 
 
