@@ -4,8 +4,11 @@ from pathlib import Path
 import requests
 import json
 from datetime import datetime, timedelta, timezone
+import time
 
 import konfiguracja
+
+
 
 API_KEY = konfiguracja.get_api_key()
 LOCATION = konfiguracja.get_location()
@@ -489,6 +492,25 @@ def pokaz_prognoze_dzienna_uproszczona(dane):
     print("="*70)
 
 
+
+
+def wait_for_next_minute():
+    """Precyzyjne czekanie do następnej pełnej minuty"""
+    now = datetime.now()
+    seconds_to_next = 60 - now.second
+    microseconds_to_next = 1000000 - now.microsecond if seconds_to_next == 60 else 0
+    
+    if seconds_to_next == 60:
+        seconds_to_next = 0
+    
+    total_seconds = seconds_to_next + (microseconds_to_next / 1000000)
+    
+    if total_seconds > 0:
+        time.sleep(total_seconds)
+    
+    return datetime.now()
+
+
 """
 wykonywanie programu 
 """
@@ -502,7 +524,7 @@ wykonywanie programu
 
 
 
-dane_pogodowe = load_data(DATA_FILE)
+# dane_pogodowe = load_data(DATA_FILE)
 
 #display_basic_info(dane_pogodowe)
 
@@ -518,9 +540,12 @@ dane_pogodowe = load_data(DATA_FILE)
 
 
 """dane dzienne"""
-pokaz_prognoze_dzienna(dane_pogodowe)
+# pokaz_prognoze_dzienna(dane_pogodowe)
 
-pokaz_prognoze_dzienna_uproszczona(dane_pogodowe)
+# pokaz_prognoze_dzienna_uproszczona(dane_pogodowe)
 
 
 
+
+
+"""główna część programu"""
