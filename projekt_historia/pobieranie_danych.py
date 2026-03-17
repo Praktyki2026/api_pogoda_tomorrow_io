@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import requests
 import json
+from datetime import datetime, timedelta, timezone
 
 import konfiguracja
 
@@ -80,6 +81,54 @@ def display_basic_info(data):
 
 
 
+def znajdz_najblizszy_wpis(data):
+    """
+    Znajduje wpis minutowy najbliższy aktualnemu czasowi systemowemu
+    """
+    if not data or "timelines" not in data or "minutely" not in data["timelines"]:
+        print("Brak danych minutowych")
+        return None, None
+    
+    # Pobierz wszystkie wpisy minutowe
+    wpisy_minutowe = data["timelines"]["minutely"]
+    
+    # Aktualny czas systemowy - konwertujemy do UTC dla porównania
+    czas_systemowy = datetime.now()  # to jest czas lokalny "naiwny"
+    
+    # Tworzymy czas "świadomy" z lokalną strefą, potem konwertujemy do UTC
+    # Dzięki temu target_utc będzie zawierać poprawny czas UTC dla Twojej lokalizacji
+    target_utc = czas_systemowy.astimezone(timezone.utc)
+    
+    print(f"Twój czas systemowy: {czas_systemowy.strftime('%H:%M:%S')}")
+    print(f"Ten sam czas w UTC: {target_utc.strftime('%H:%M:%S')}")
+    
+    najblizszy_wpis = None
+    najblizszy_czas = None
+    najmniejsza_roznica = float('inf')
+    
+    for wpis in wpisy_minutowe:
+        # Czas z API (format: "2024-01-15T12:34:00Z")
+        czas_api = wpis["time"]
+        
+        # Konwersja na obiekt datetime (świadomy UTC)
+        czas_wpisu = datetime.fromisoformat(czas_api.replace('Z', '+00:00'))
+        
+        # Oblicz różnicę w sekundach - oba czasy są świadome UTC
+        roznica = abs((czas_wpisu - target_utc).total_seconds())
+        
+        if roznica < najmniejsza_roznica:
+            najmniejsza_roznica = roznica
+            najblizszy_wpis = wpis["values"]
+            najblizszy_czas = czas_api
+    
+    print(f"Znaleziono wpis z {najmniejsza_roznica:.1f}s różnicy")
+    return najblizszy_wpis, najblizszy_czas
+
+
+
+
+
+
 
 """
 wykonywanie programu 
@@ -97,7 +146,11 @@ wykonywanie programu
 dane_pogodowe = load_data(DATA_FILE)
 
 display_basic_info(dane_pogodowe)
+wpis, czas = znajdz_najblizszy_wpis(dane_pogodowe)
 
+print("wyświetlanie danych")
+print (czas)
+print (wpis)
 
 
 
