@@ -352,8 +352,141 @@ na kiedyś do zrobienia
 dodać jeszcze funkcję która będzie wyświetlała szczegółowe informacje godzinowe na wybrany dzień 
 """
 
+def pobierz_prognoze_dzienna(dane):
+    """
+    Pobiera prognozę dzienną z danych
+    """
+    if not dane or "timelines" not in dane or "daily" not in dane["timelines"]:
+        print("Brak danych dziennych")
+        return []
+    
+    return dane["timelines"]["daily"]
 
 
+def pokaz_prognoze_dzienna(dane):
+    """
+    Wyświetla prognozę na najbliższe dni w formie rozszerzonej
+    """
+    print("\n" + "="*90)
+    print("PROGNOZA DZIENNA (NAJBLIŻSZE DNI)")
+    print("="*90)
+    
+    prognoza = pobierz_prognoze_dzienna(dane)
+    
+    if not prognoza:
+        print("Brak danych do wyświetlenia")
+        return
+    
+    # Nagłówek tabeli
+    print(f"{'Data':<12} {'Dzień tyg':<10} {'Temp max':<10} {'Temp min':<10} {'Opady max':<10} {'Opady min':<10} {'Wschód':<8} {'Zachód':<8}")
+    print("-" * 90)
+    
+    for wpis in prognoza:
+        czas = wpis["time"]
+        wartosci = wpis["values"]
+        
+        # Konwersja daty
+        czas_obj = datetime.fromisoformat(czas.replace('Z', '+00:00'))
+        data_lokalna = czas_obj.astimezone()
+        
+        # Formatowanie daty (np. "15.01.2024")
+        data = data_lokalna.strftime("%d.%m.%Y")
+        
+        # Dzień tygodnia po polsku
+        dni_tygodnia = {
+            "Monday": "Poniedziałek",
+            "Tuesday": "Wtorek", 
+            "Wednesday": "Środa",
+            "Thursday": "Czwartek",
+            "Friday": "Piątek",
+            "Saturday": "Sobota",
+            "Sunday": "Niedziela"
+        }
+        dzien_tyg_ang = data_lokalna.strftime("%A")
+        dzien_tyg = dni_tygodnia.get(dzien_tyg_ang, dzien_tyg_ang)
+        
+        # Temperatury
+        temp_max = wartosci.get('temperatureMax')
+        temp_min = wartosci.get('temperatureMin')
+        
+        # Opady
+        opady_max = wartosci.get('precipitationProbabilityMax')
+        opady_min = wartosci.get('precipitationProbabilityMin')
+        
+        # Wschód/zachód słońca
+        wschod = wartosci.get('sunriseTime')
+        zachod = wartosci.get('sunsetTime')
+        
+        if wschod:
+            wschod_obj = datetime.fromisoformat(wschod.replace('Z', '+00:00'))
+            wschod = wschod_obj.astimezone().strftime("%H:%M")
+        else:
+            wschod = "--:--"
+        
+        if zachod:
+            zachod_obj = datetime.fromisoformat(zachod.replace('Z', '+00:00'))
+            zachod = zachod_obj.astimezone().strftime("%H:%M")
+        else:
+            zachod = "--:--"
+        
+        # Przygotowanie stringów z obsługą braku danych
+        temp_max_str = f"{temp_max:.0f}°C" if temp_max is not None else "---"
+        temp_min_str = f"{temp_min:.0f}°C" if temp_min is not None else "---"
+        opady_max_str = f"{opady_max:.0f}%" if opady_max is not None else "---"
+        opady_min_str = f"{opady_min:.0f}%" if opady_min is not None else "---"
+        
+        print(f"{data:<12} {dzien_tyg:<10} {temp_max_str:<10} {temp_min_str:<10} {opady_max_str:<10} {opady_min_str:<10} {wschod:<8} {zachod:<8}")
+    
+    print("="*90)
+
+def pokaz_prognoze_dzienna_uproszczona(dane):
+    """
+    Uproszczona wersja - pokazuje tylko najważniejsze informacje
+    """
+    print("\n" + "="*70)
+    print("PROGNOZA DZIENNA (Uproszczona)")
+    print("="*70)
+    
+    prognoza = pobierz_prognoze_dzienna(dane)
+    
+    if not prognoza:
+        print("Brak danych do wyświetlenia")
+        return
+    
+    print(f"{'Data':<12} {'Dzień':<10} {'Temp':<12} {'Opady':<12}")
+    print("-" * 70)
+    
+    for wpis in prognoza:
+        czas = wpis["time"]
+        wartosci = wpis["values"]
+        
+        czas_obj = datetime.fromisoformat(czas.replace('Z', '+00:00'))
+        data_lokalna = czas_obj.astimezone()
+        
+        data = data_lokalna.strftime("%d.%m.%Y")
+        
+        dni_tygodnia = {
+            "Monday": "Pon",
+            "Tuesday": "Wt",
+            "Wednesday": "Śr",
+            "Thursday": "Czw",
+            "Friday": "Pt",
+            "Saturday": "Sob",
+            "Sunday": "Nd"
+        }
+        dzien_tyg_ang = data_lokalna.strftime("%A")
+        dzien_tyg = dni_tygodnia.get(dzien_tyg_ang, dzien_tyg_ang)
+        
+        temp_max = wartosci.get('temperatureMax')
+        temp_min = wartosci.get('temperatureMin')
+        opady_max = wartosci.get('precipitationProbabilityMax')
+        
+        temp_str = f"{temp_min:.0f}-{temp_max:.0f}°C" if temp_min and temp_max else "---"
+        opady_str = f"{opady_max:.0f}%" if opady_max is not None else "---"
+        
+        print(f"{data:<12} {dzien_tyg:<10} {temp_str:<12} {opady_str:<12}")
+    
+    print("="*70)
 
 
 """
@@ -373,19 +506,21 @@ dane_pogodowe = load_data(DATA_FILE)
 
 #display_basic_info(dane_pogodowe)
 
+"""dane minutowe"""
 #pokaz_pogode_teraz(dane_pogodowe)
 
 
-pokaz_prognoze_doba(dane_pogodowe)
+"""dane godzinowe"""
+# pokaz_prognoze_doba(dane_pogodowe)
 
-pokaz_prognoze_doba_szczegolowa(dane_pogodowe)
-
-
-
+# pokaz_prognoze_doba_szczegolowa(dane_pogodowe)
 
 
 
+"""dane dzienne"""
+pokaz_prognoze_dzienna(dane_pogodowe)
 
+pokaz_prognoze_dzienna_uproszczona(dane_pogodowe)
 
 
 
