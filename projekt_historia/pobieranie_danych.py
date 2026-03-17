@@ -165,7 +165,6 @@ def znajdz_najblizszy_wpis(data):
             najblizszy_wpis = wpis["values"]
             najblizszy_czas = czas_api
     
-    print(f"Znaleziono wpis z {najmniejsza_roznica:.1f}s różnicy")
     return najblizszy_wpis, najblizszy_czas
 
 
@@ -226,8 +225,66 @@ def pokaz_pogode_teraz(dane):
     
     print("="*50)
 
+def pobierz_nastepne_24h(dane):
+    """
+    Pobiera prognozę godzinową z danych.
+    Domyślnie zwraca 24 godziny (można zmienić)
+    """
+    if not dane or "timelines" not in dane or "hourly" not in dane["timelines"]:
+        print("Brak danych godzinowych")
+        return []
+    
+    wszystkie_godziny = dane["timelines"]["hourly"]
+    
+    # Ogranicz do żądanej liczby godzin
+    return wszystkie_godziny[:24]
 
 
+def pokaz_prognoze_doba(dane):
+    """
+    Wyświetla prognozę pogody na najbliższe 24 godziny w formie tabeli
+    """
+    print("\n" + "="*70)
+    print("PROGNOZA GODZINOWA (NASTĘPNE 24H)")
+    print("="*70)
+    
+    prognoza = pobierz_nastepne_24h(dane)
+    
+    if not prognoza:
+        print("Brak danych do wyświetlenia")
+        return
+    
+    # Nagłówek tabeli
+    print(f"{'Godzina':<10} {'Temp':<8} {'Opady':<8} {'Wiatr':<8} {'Zachm.'}")  # Zamień "na" na normalny tekst
+    print("-" * 70)
+    
+    for wpis in prognoza:
+        czas = wpis["time"]
+        wartosci = wpis["values"]
+        
+        # Konwersja czasu UTC na lokalny
+        czas_obj = datetime.fromisoformat(czas.replace('Z', '+00:00'))
+        czas_lokalny = czas_obj.astimezone()
+        
+        # Formatowanie godziny (np. "14:00")
+        godzina = czas_lokalny.strftime("%H:%M")
+        
+        # Pobieranie danych
+        temp = wartosci.get('temperature')
+        opady = wartosci.get('precipitationProbability')
+        wiatr = wartosci.get('windSpeed')
+        zachmurzenie = wartosci.get('cloudCover')
+        
+        # Przygotowanie stringów do wyświetlenia
+        temp_str = f"{temp:.1f}°C" if temp is not None else "---"
+        opady_str = f"{opady:.0f}%" if opady is not None else "---"
+        wiatr_str = f"{(wiatr * 3.6):.1f}" if wiatr is not None else "---"  # m/s na km/h
+        zachm_str = f"{zachmurzenie:.0f}%" if zachmurzenie is not None else "---"
+        
+        # Wyświetlenie wiersza
+        print(f"{godzina:<10} {temp_str:<8} {opady_str:<8} {wiatr_str:<8} {zachm_str}")
+    
+    print("="*70)
 
 
 """
@@ -247,12 +304,10 @@ dane_pogodowe = load_data(DATA_FILE)
 
 #display_basic_info(dane_pogodowe)
 
-pokaz_pogode_teraz(dane_pogodowe)
+#pokaz_pogode_teraz(dane_pogodowe)
 
 
-
-
-
+pokaz_prognoze_doba(dane_pogodowe)
 
 
 
