@@ -549,3 +549,14 @@ wykonywanie programu
 
 
 """główna część programu"""
+
+print("Pobieranie danych")
+data = fetch_weather_data()
+
+
+print("zapisywanie danych do pliku json")
+setup_folders()
+save_data(data, DATA_FILE)
+
+print("wczytywanie danych json")
+dane_pogodowe = load_data(DATA_FILE)
