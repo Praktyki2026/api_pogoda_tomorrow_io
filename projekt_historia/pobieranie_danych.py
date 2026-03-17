@@ -527,38 +527,37 @@ def uruchom_program():
     # Inicjalizacja
     setup_folders()
     
-    # Sprawdź czy mamy zapisane dane
-    dane = load_data(DATA_FILE)
+    # Pobierz pierwsze dane
+    print("📡 Pobieranie danych...")
+    dane = fetch_weather_data()
     
     if not dane:
-        print("📡 Brak zapisanych danych. Pobieranie pierwszych danych...")
-        dane = fetch_weather_data()
-        if not dane:
-            print("❌ Nie udało się pobrać danych")
-            return
-        save_data(dane, DATA_FILE)
-        print("✅ Pierwsze dane pobrane")
-    else:
-        print("✅ Wczytano zapisane dane")
-        
+        print("❌ Nie udało się pobrać danych")
+        return
     
-    # Synchronizacja z pierwszą pełną minutą
-    now = datetime.now()
-    if now.second != 0:
-        wait_seconds = 60 - now.second
-        print(f"⏳ Synchronizacja... Start za {wait_seconds} sekund")
-        time.sleep(wait_seconds)
+    save_data(dane, DATA_FILE)
+    print("✅ Dane pobrane")
+    
+    # WYŚWIETL PIERWSZE DANE OD RAZU (bez synchronizacji)
+    print("\n📊 Wyświetlanie pierwszych danych...")
+    pokaz_pogode_teraz(dane)
+    
+    # # Synchronizacja do następnej pełnej minuty (dla kolejnych wyświetleń)
+    # now = datetime.now()
+    # if now.second != 0:
+    #     wait_seconds = 60 - now.second
+    #     time.sleep(wait_seconds)
     
     # Główna pętla
     next_hour_update = datetime.now().replace(second=0, microsecond=0) + timedelta(hours=1)
-    last_display_time = None
+    last_display_time = datetime.now()
     
     try:
         while True:
             current_time = datetime.now()
             
             # Wyświetlaj tylko jeśli to nowa minuta
-            if last_display_time is None or current_time.minute != last_display_time.minute:
+            if current_time.minute != last_display_time.minute:
                 
                 # Sprawdź aktualizację danych (pełna godzina)
                 if current_time >= next_hour_update:
@@ -573,7 +572,7 @@ def uruchom_program():
                     
                     next_hour_update = current_time.replace(second=0, microsecond=0) + timedelta(hours=1)
                 
-                # Pokaż dane - używamy Twojej funkcji pokaz_pogode_teraz
+                # Pokaż dane
                 pokaz_pogode_teraz(dane)
                 
                 last_display_time = current_time
@@ -585,6 +584,10 @@ def uruchom_program():
         print("\n\n👋 Program zatrzymany")
     except Exception as e:
         print(f"\n❌ Błąd: {e}")
+
+
+
+
 
 
 
