@@ -13,6 +13,53 @@ DATA_FOLDER = "dane"
 DATA_FILE = os.path.join(DATA_FOLDER, "weather_data.json")
 
 
+
+# ============================================
+# SŁOWNIK KODÓW POGODOWYCH
+# ============================================
+
+WEATHER_CODES = {
+    # Sunny / Clear conditions
+    1000: "☀️ Słonecznie",
+    1100: "🌤️ Głównie słonecznie",
+    1101: "⛅ Częściowo słonecznie",
+    
+    # Cloudy conditions
+    1102: "☁️ Częściowo pochmurnie",
+    1001: "☁️ Pochmurnie",
+    
+    # Fog
+    2000: "🌫️ Mgła",
+    2100: "🌫️ Lekka mgła",
+    
+    # Rain
+    4000: "🌧️ Lekki deszcz",
+    4001: "🌧️ Deszcz",
+    4200: "🌧️ Lekkie opady",
+    4201: "🌧️ Ulewne opady",
+    
+    # Snow
+    5000: "❄️ Lekki śnieg",
+    5001: "❄️ Śnieg",
+    5100: "❄️ Lekkie opady śniegu",
+    5101: "❄️ Ulewne opady śniegu",
+    
+    # Mixed rain/snow
+    6000: "🌨️ Lekki deszcz ze śniegiem",
+    6001: "🌨️ Deszcz ze śniegiem",
+    6200: "🌨️ Lekki deszcz ze śniegiem",
+    6201: "🌨️ Ulewny deszcz ze śniegiem",
+    
+    # Hail / Ice
+    7000: "🧊 Grad",
+    7101: "🧊 Lekki lód",
+    7102: "🧊 Gęsty lód",
+    
+    # Storm
+    8000: "⛈️ Burza"
+}
+
+
 """podstawowe funkcje"""
 
 def setup_folders():
@@ -99,9 +146,6 @@ def znajdz_najblizszy_wpis(data):
     # Dzięki temu target_utc będzie zawierać poprawny czas UTC dla Twojej lokalizacji
     target_utc = czas_systemowy.astimezone(timezone.utc)
     
-    print(f"Twój czas systemowy: {czas_systemowy.strftime('%H:%M:%S')}")
-    print(f"Ten sam czas w UTC: {target_utc.strftime('%H:%M:%S')}")
-    
     najblizszy_wpis = None
     najblizszy_czas = None
     najmniejsza_roznica = float('inf')
@@ -125,6 +169,62 @@ def znajdz_najblizszy_wpis(data):
     return najblizszy_wpis, najblizszy_czas
 
 
+def opis_pogody(weather_code):
+    """
+    Zwraca opis pogody dla podanego kodu.
+    Jeśli kod nie istnieje, zwraca komunikat "Nieznany kod".
+    """
+    return WEATHER_CODES.get(weather_code, f"❓ Nieznany kod ({weather_code})")
+
+def pokaz_pogode_teraz(dane):
+    """
+    Wyświetla podstawowe dane pogodowe dla aktualnego czasu
+    Funkcja wyświetla temperaturę, wilgotność, wiatr, ciśnienie, prawdopodobieństwo opadów, zachmurzenie.
+    """
+    print("\n" + "="*50)
+    print("POGODA TERAZ")
+    print("="*50)
+    
+    # Znajdź wpis dla aktualnego czasu
+    wartosci, czas = znajdz_najblizszy_wpis(dane)
+    
+    if not wartosci:
+        print("Nie znaleziono danych dla aktualnego czasu")
+        return
+    
+    # Wyświetl czas pomiaru
+    if czas:
+        czas_obj = datetime.fromisoformat(czas.replace('Z', '+00:00'))
+        czas_lokalny = czas_obj.astimezone()
+        print(f"🕐 Czas pomiaru: {czas_lokalny.strftime('%H:%M:%S')}")
+    
+    # Wyświetl podstawowe dane
+    if wartosci.get('weatherCode') is not None:
+        kod = wartosci['weatherCode']
+        opis = opis_pogody(kod)
+        print(f"🌡️  Warunki: {opis}")
+    
+    if wartosci.get('temperature') is not None:
+        print(f"🌡️  Temperatura: {wartosci['temperature']:.1f}°C")
+    
+    if wartosci.get('humidity') is not None:
+        print(f"💧 Wilgotność: {wartosci['humidity']:.0f}%")
+    
+    if wartosci.get('windSpeed') is not None:
+        # Przelicz m/s na km/h
+        wiatr_kmh = wartosci['windSpeed'] * 3.6
+        print(f"💨 Wiatr: {wiatr_kmh:.1f} km/h")
+    
+    if wartosci.get('pressureSeaLevel') is not None:
+        print(f"📈 Ciśnienie: {wartosci['pressureSeaLevel']:.0f} hPa")
+    
+    if wartosci.get('precipitationProbability') is not None:
+        print(f"☔  Prawd. opadów: {wartosci['precipitationProbability']:.0f}%")
+    
+    if wartosci.get('cloudCover') is not None:
+        print(f"☁️  Zachmurzenie: {wartosci['cloudCover']:.0f}%")
+    
+    print("="*50)
 
 
 
@@ -145,14 +245,9 @@ wykonywanie programu
 
 dane_pogodowe = load_data(DATA_FILE)
 
-display_basic_info(dane_pogodowe)
-wpis, czas = znajdz_najblizszy_wpis(dane_pogodowe)
+#display_basic_info(dane_pogodowe)
 
-print("wyświetlanie danych")
-print (czas)
-print (wpis)
-
-
+pokaz_pogode_teraz(dane_pogodowe)
 
 
 
