@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 import time
 import threading
 from queue import Queue
-import logging
 
 import konfiguracja
 
@@ -66,16 +65,6 @@ def setup_folders():
     """Tworzy folder na dane jeśli nie istnieje"""
     Path(DATA_FOLDER).mkdir(parents=True, exist_ok=True)
 
-def setup_logging():
-    """Konfiguracja logowania"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(os.path.join(DATA_FOLDER, 'weather_service.log')),
-            logging.StreamHandler()
-        ]
-    )
 
 def fetch_weather_data():
     """funkcja służy do pobierania danych z tomorrow.io o wybranych parametrach"""
@@ -87,36 +76,24 @@ def fetch_weather_data():
         "units": "metric"
     }
 
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        logging.info("Dane pobrane z API")
-        return data
-    except Exception as e:
-        logging.error(f"Błąd pobierania: {e}")
-        return None
+    response = requests.get(url, params=params, timeout=10)
+    response.raise_for_status()
+    data = response.json()
+    return data
+
 
 def save_data(data):
     """Funkcja do zapisywania danych do pliku json"""
-    try:
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        logging.info("Dane zapisane do pliku")
-    except Exception as e:
-        logging.error(f"Błąd zapisu: {e}")
+
 
 def load_data():
     """Wczytuje dane z pliku JSON"""
-    try:
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return data
-    except FileNotFoundError:
-        return None
-    except Exception as e:
-        logging.error(f"Błąd odczytu: {e}")
-        return None
+    with open(DATA_FILE, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return data
+
 
 def znajdz_najblizszy_wpis(data, czas_docelowy=None):
     """
@@ -280,12 +257,8 @@ def aktualizuj_dane():
     """Pobiera nowe dane i aktualizuje wszystkie struktury"""
     global current_data
     
-    logging.info("Rozpoczęcie aktualizacji danych")
     dane = fetch_weather_data()
     
-    if not dane:
-        logging.error("Nie udało się pobrać danych")
-        return False
     
     # Zapisz do pliku
     save_data(dane)
@@ -315,7 +288,6 @@ def aktualizuj_dane():
     if dane_dzienne:
         day_queue.put(dane_dzienne)
     
-    logging.info("Dane zaktualizowane pomyślnie")
     return True
 
 def uruchom_usluge_pogodowa():
@@ -324,15 +296,8 @@ def uruchom_usluge_pogodowa():
     Aktualizuje dane co godzinę i wysyła do kolejek
     """
     setup_folders()
-    setup_logging()
     
-    logging.info("🚀 Uruchomienie usługi pogodowej")
-    logging.info(f"Lokalizacja: {LOCATION}")
     
-    # Pierwsza aktualizacja
-    if not aktualizuj_dane():
-        logging.error("Nie udało się pobrać początkowych danych")
-        return
     
     # Główna pętla aktualizacji
     next_hour_update = datetime.now().replace(second=0, microsecond=0) + timedelta(hours=1)
@@ -351,16 +316,16 @@ def uruchom_usluge_pogodowa():
             if current_time.minute != last_minute_send.minute:
                 if current_data.get('minute'):
                     minute_queue.put(current_data['minute'])
-                    logging.debug(f"Dane minutowe wysłane: {current_time.strftime('%H:%M')}")
                 last_minute_send = current_time
+                
             
             # Czekaj
             wait_for_next_minute()
             
     except KeyboardInterrupt:
-        logging.info("👋 Usługa pogodowa zatrzymana")
+        print("👋 Usługa pogodowa zatrzymana")
     except Exception as e:
-        logging.error(f"❌ Błąd w usłudze: {e}")
+        print(f"❌ Błąd w usłudze: {e}")
 
 # ============================================
 # FUNKCJE POMOCNICZE DLA FLASKA
