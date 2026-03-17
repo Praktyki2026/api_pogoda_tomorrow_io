@@ -15,7 +15,13 @@ LOCATION = konfiguracja.get_location()
 DATA_FOLDER = "dane"
 DATA_FILE = os.path.join(DATA_FOLDER, "weather_data.json")
 
-
+weather_data_for_flask = {
+    'minute': None,      # aktualne dane minutowe
+    'hour': None,        # lista 24 godzin
+    'day': None,         # lista dni
+    'last_update': None, # timestamp
+    'location': LOCATION
+}
 
 # ============================================
 # SŁOWNIK KODÓW POGODOWYCH
@@ -511,6 +517,77 @@ def wait_for_next_minute():
     return datetime.now()
 
 
+def przygotuj_dane_minutowe(wartosci, czas):
+    """Przygotowuje dane minutowe do słownika"""
+    if not wartosci:
+        return None
+    
+    czas_obj = datetime.fromisoformat(czas.replace('Z', '+00:00'))
+    
+    return {
+        'timestamp': czas,
+        'time_local': czas_obj.astimezone().strftime('%H:%M:%S'),
+        'weather_code': wartosci.get('weatherCode'),
+        'weather_description': opis_pogody(wartosci.get('weatherCode')),
+        'temperature': wartosci.get('temperature'),
+        'temperature_apparent': wartosci.get('temperatureApparent'),
+        'humidity': wartosci.get('humidity'),
+        'wind_speed_kmh': wartosci.get('windSpeed') * 3.6 if wartosci.get('windSpeed') else None,
+        'pressure': wartosci.get('pressureSeaLevel'),
+        'precipitation_probability': wartosci.get('precipitationProbability'),
+        'cloud_cover': wartosci.get('cloudCover')
+    }
+
+def przygotuj_dane_godzinowe(dane, liczba_godzin=24):
+    """Przygotowuje dane godzinowe do słownika"""
+    if not dane or "timelines" not in dane or "hourly" not in dane["timelines"]:
+        return []
+    
+    wszystkie_godziny = dane["timelines"]["hourly"][:liczba_godzin]
+    wynik = []
+    
+    for wpis in wszystkie_godziny:
+        czas_obj = datetime.fromisoformat(wpis["time"].replace('Z', '+00:00'))
+        wartosci = wpis["values"]
+        
+        wynik.append({
+            'time_local': czas_obj.astimezone().strftime('%H:%M'),
+            'temperature': wartosci.get('temperature'),
+            'precipitation_probability': wartosci.get('precipitationProbability'),
+            'wind_speed_kmh': wartosci.get('windSpeed') * 3.6 if wartosci.get('windSpeed') else None,
+            'cloud_cover': wartosci.get('cloudCover'),
+            'weather_description': opis_pogody(wartosci.get('weatherCode'))
+        })
+    
+    return wynik
+
+def przygotuj_dane_dzienne(dane):
+    """Przygotowuje dane dzienne do słownika"""
+    if not dane or "timelines" not in dane or "daily" not in dane["timelines"]:
+        return []
+    
+    wszystkie_dni = dane["timelines"]["daily"]
+    wynik = []
+    
+    dni_tygodnia = {
+        "Monday": "Pon", "Tuesday": "Wt", "Wednesday": "Śr",
+        "Thursday": "Czw", "Friday": "Pt", "Saturday": "Sob", "Sunday": "Nd"
+    }
+    
+    for wpis in wszystkie_dni:
+        czas_obj = datetime.fromisoformat(wpis["time"].replace('Z', '+00:00'))
+        wartosci = wpis["values"]
+        
+        wynik.append({
+            'date': czas_obj.astimezone().strftime('%d.%m'),
+            'day': dni_tygodnia.get(czas_obj.strftime("%A"), ""),
+            'temp_max': wartosci.get('temperatureMax'),
+            'temp_min': wartosci.get('temperatureMin'),
+            'precipitation_max': wartosci.get('precipitationProbabilityMax'),
+            'weather_description': opis_pogody(wartosci.get('weatherCodeMax'))
+        })
+    
+    return wynik
 
 
 def uruchom_program():
@@ -538,15 +615,17 @@ def uruchom_program():
     save_data(dane, DATA_FILE)
     print("✅ Dane pobrane")
     
-    # WYŚWIETL PIERWSZE DANE OD RAZU (bez synchronizacji)
+
+    global weather_data_for_flask
+    wartosci_min, czas_min = znajdz_najblizszy_wpis(dane)
+    weather_data_for_flask['minute'] = przygotuj_dane_minutowe(wartosci_min, czas_min)
+    weather_data_for_flask['hour'] = przygotuj_dane_godzinowe(dane)
+    weather_data_for_flask['day'] = przygotuj_dane_dzienne(dane)
+    weather_data_for_flask['last_update'] = datetime.now().isoformat()
+    
+    # WYŚWIETL PIERWSZE DANE OD RAZU
     print("\n📊 Wyświetlanie pierwszych danych...")
     pokaz_pogode_teraz(dane)
-    
-    # # Synchronizacja do następnej pełnej minuty (dla kolejnych wyświetleń)
-    # now = datetime.now()
-    # if now.second != 0:
-    #     wait_seconds = 60 - now.second
-    #     time.sleep(wait_seconds)
     
     # Główna pętla
     next_hour_update = datetime.now().replace(second=0, microsecond=0) + timedelta(hours=1)
@@ -566,11 +645,21 @@ def uruchom_program():
                     if new_data:
                         dane = new_data
                         save_data(dane, DATA_FILE)
+                        
+
+                        weather_data_for_flask['hour'] = przygotuj_dane_godzinowe(dane)
+                        weather_data_for_flask['day'] = przygotuj_dane_dzienne(dane)
+                        weather_data_for_flask['last_update'] = datetime.now().isoformat()
+                        
                         print("✅ Dane zaktualizowane")
                     else:
                         print("⚠️ Używam starych danych")
                     
                     next_hour_update = current_time.replace(second=0, microsecond=0) + timedelta(hours=1)
+                
+
+                wartosci_min, czas_min = znajdz_najblizszy_wpis(dane)
+                weather_data_for_flask['minute'] = przygotuj_dane_minutowe(wartosci_min, czas_min)
                 
                 # Pokaż dane
                 pokaz_pogode_teraz(dane)
@@ -584,6 +673,7 @@ def uruchom_program():
         print("\n\n👋 Program zatrzymany")
     except Exception as e:
         print(f"\n❌ Błąd: {e}")
+
 
 
 
@@ -648,3 +738,37 @@ wykonywanie programu
 
 # Po prostu wywołaj funkcję
 uruchom_program()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ============================================
+# FUNKCJE DLA SERWERA FLASK
+# ============================================
+
+# def get_current_weather():
+#     """Zwraca aktualne dane minutowe"""
+#     return weather_data_for_flask.get('minute')
+
+# def get_hourly_forecast():
+#     """Zwraca prognozę godzinową"""
+#     return weather_data_for_flask.get('hour', [])
+
+# def get_daily_forecast():
+#     """Zwraca prognozę dzienną"""
+#     return weather_data_for_flask.get('day', [])
+
+# def get_all_weather_data():
+#     """Zwraca wszystkie dane"""
+#     return weather_data_for_flask.copy()
