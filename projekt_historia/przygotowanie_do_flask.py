@@ -375,3 +375,52 @@ else:
         weather_data['day'] = przygotuj_dane_dzienne(dane_z_pliku)
         weather_data['last_update'] = datetime.now().isoformat()
         logging.info("Wczytano ostatnie dane z pliku")
+
+
+
+
+
+
+
+
+
+
+
+#przykład wykorzystania w Flask
+
+# from flask import Flask, jsonify
+# import threading
+# from twoj_modul import (
+#     uruchom_usluge_pogodowa,
+#     get_current_weather,
+#     get_hourly_forecast,
+#     get_daily_forecast,
+#     get_all_weather_data
+# )
+
+# app = Flask(__name__)
+
+# # Uruchom usługę w tle
+# weather_thread = threading.Thread(target=uruchom_usluge_pogodowa, daemon=True)
+# weather_thread.start()
+
+# @app.route('/api/weather/now')
+# def weather_now():
+#     """Zwraca aktualną pogodę"""
+#     return jsonify(get_current_weather())
+
+# @app.route('/api/weather/hourly')
+# def weather_hourly():
+#     """Zwraca prognozę godzinową"""
+#     hours = request.args.get('hours', 24, type=int)
+#     return jsonify(get_hourly_forecast(hours))
+
+# @app.route('/api/weather/daily')
+# def weather_daily():
+#     """Zwraca prognozę dzienną"""
+#     return jsonify(get_daily_forecast())
+
+# @app.route('/api/weather/all')
+# def weather_all():
+#     """Zwraca wszystkie dane"""
+#     return jsonify(get_all_weather_data())
