@@ -511,6 +511,83 @@ def wait_for_next_minute():
     return datetime.now()
 
 
+
+
+def uruchom_program():
+    """
+    Główna funkcja uruchamiająca program
+    Wyświetla dane minutowe co minutę i aktualizuje dane co godzinę
+    """
+    print("\n" + "🌟"*30)
+    print("         PROGRAM POGODOWY - TOMORROW.IO")
+    print("         (Dane minutowe)")
+    print(f"         Lokalizacja: {LOCATION}")
+    print("🌟"*30 + "\n")
+    
+    # Inicjalizacja
+    setup_folders()
+    
+    # Sprawdź czy mamy zapisane dane
+    dane = load_data(DATA_FILE)
+    
+    if not dane:
+        print("📡 Brak zapisanych danych. Pobieranie pierwszych danych...")
+        dane = fetch_weather_data()
+        if not dane:
+            print("❌ Nie udało się pobrać danych")
+            return
+        save_data(dane, DATA_FILE)
+        print("✅ Pierwsze dane pobrane")
+    else:
+        print("✅ Wczytano zapisane dane")
+        
+    
+    # Synchronizacja z pierwszą pełną minutą
+    now = datetime.now()
+    if now.second != 0:
+        wait_seconds = 60 - now.second
+        print(f"⏳ Synchronizacja... Start za {wait_seconds} sekund")
+        time.sleep(wait_seconds)
+    
+    # Główna pętla
+    next_hour_update = datetime.now().replace(second=0, microsecond=0) + timedelta(hours=1)
+    last_display_time = None
+    
+    try:
+        while True:
+            current_time = datetime.now()
+            
+            # Wyświetlaj tylko jeśli to nowa minuta
+            if last_display_time is None or current_time.minute != last_display_time.minute:
+                
+                # Sprawdź aktualizację danych (pełna godzina)
+                if current_time >= next_hour_update:
+                    print("\n⏰ Aktualizacja danych...")
+                    new_data = fetch_weather_data()
+                    if new_data:
+                        dane = new_data
+                        save_data(dane, DATA_FILE)
+                        print("✅ Dane zaktualizowane")
+                    else:
+                        print("⚠️ Używam starych danych")
+                    
+                    next_hour_update = current_time.replace(second=0, microsecond=0) + timedelta(hours=1)
+                
+                # Pokaż dane - używamy Twojej funkcji pokaz_pogode_teraz
+                pokaz_pogode_teraz(dane)
+                
+                last_display_time = current_time
+            
+            # Czekaj do następnej minuty
+            wait_for_next_minute()
+            
+    except KeyboardInterrupt:
+        print("\n\n👋 Program zatrzymany")
+    except Exception as e:
+        print(f"\n❌ Błąd: {e}")
+
+
+
 """
 wykonywanie programu 
 """
@@ -548,15 +625,23 @@ wykonywanie programu
 
 
 
-"""główna część programu"""
+# """główna część programu"""
 
-print("Pobieranie danych")
-data = fetch_weather_data()
+# print("Pobieranie danych")
+# data = fetch_weather_data()
 
 
-print("zapisywanie danych do pliku json")
-setup_folders()
-save_data(data, DATA_FILE)
+# print("zapisywanie danych do pliku json")
+# setup_folders()
+# save_data(data, DATA_FILE)
 
-print("wczytywanie danych json")
-dane_pogodowe = load_data(DATA_FILE)
+# print("wczytywanie danych json")
+# dane_pogodowe = load_data(DATA_FILE)
+
+
+# ============================================
+# URUCHOMIENIE PROGRAMU
+# ============================================
+
+# Po prostu wywołaj funkcję
+uruchom_program()
