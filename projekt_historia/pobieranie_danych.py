@@ -12,6 +12,8 @@ DATA_FOLDER = "dane"
 DATA_FILE = os.path.join(DATA_FOLDER, "weather_data.json")
 
 
+"""podstawowe funkcje"""
+
 def setup_folders():
     """Tworzy folder na dane jeśli nie istnieje"""
     Path(DATA_FOLDER).mkdir(parents=True, exist_ok=True)
@@ -49,17 +51,52 @@ def save_data(data, filename):
     except Exception as e:
         print(f"błąd: {e}")
 
+def load_data(filename):
+    """Wczytuje dane z pliku JSON"""
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        return None
 
 
 
-print("Pobieranie danych")
-data = fetch_weather_data()
+def display_basic_info(data):
+    """Wyświetlanie podstawowych informacji o pobranych danych"""
+
+    print("\n" + "="*50)
+    print("PODSTAWOWE INFORMACJE O DANYCH")
+    print("="*50)
+    
+    if "timelines" in data:
+        timelines = data["timelines"]
+        for interval in ["minutely", "hourly", "daily"]:
+            if interval in timelines:
+                count = len(timelines[interval])
+                print(f"📊 {interval}: {count} wpisów")
+    
+    print("="*50)
 
 
-print("zapisywanie danych do pliku json")
-setup_folders()
-save_data(data, DATA_FILE)
 
+
+"""
+wykonywanie programu 
+"""
+# print("Pobieranie danych")
+# data = fetch_weather_data()
+
+
+# print("zapisywanie danych do pliku json")
+# setup_folders()
+# save_data(data, DATA_FILE)
+
+
+
+dane_pogodowe = load_data(DATA_FILE)
+
+display_basic_info(dane_pogodowe)
 
 
 
